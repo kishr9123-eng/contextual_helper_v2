@@ -10,44 +10,39 @@ chrome.runtime.onInstalled.addListener(() => {
 const BACKEND_URL = "http://127.0.0.1:8000/api/llm";
 
 // Listen for messages from the content script
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SHOW_MENU") {
     console.log("📩 Got selection:", message.text);
 
-    try {
-      const response = await fetch(BACKEND_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        // Default action is "summarize" (just to get the actions list back)
-        body: JSON.stringify({
-          text: message.text,
-          action: "summarize"
-        })
+    fetch(BACKEND_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: message.text,
+        action: "summarize", // default action
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Backend error: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        console.log("✅ Backend response:", data);
+        sendResponse({
+          status: "ok",
+          answer: data.answer,
+          actions: data.actions || [],
+        });
+      })
+      .catch((err) => {
+        console.error("❌ Backend fetch failed:", err);
+        sendResponse({
+          status: "error",
+          answer: "❌ Backend unavailable",
+          actions: [],
+        });
       });
-
-      if (!response.ok) {
-        throw new Error(`Backend error: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // ✅ Send both answer and actions back to content script
-      sendResponse({
-        status: "ok",
-        answer: data.answer,
-        actions: data.actions || [] // fallback empty array if not present
-      });
-    } catch (err) {
-      console.error("❌ Backend fetch failed:", err);
-      sendResponse({
-        status: "error",
-        message: "Backend unavailable"
-      });
-    }
+    // 👈 keep message channel open until sendResponse is called
   }
-
-  // Keep message channel open for async sendResponse
   return true;
 });

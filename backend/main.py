@@ -51,3 +51,6 @@ def process_query(query: Query):
         "answer": answer,
         "actions": LLM_ACTIONS,
     }
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "Backend running ✅"}

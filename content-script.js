@@ -1,4 +1,3 @@
-// content-script.js
 console.log("✅ Content script loaded!");
 
 // Remove old popup
@@ -27,9 +26,7 @@ function showLoadingPopup(x, y) {
   document.body.appendChild(popup);
 
   setTimeout(() => {
-    document.addEventListener("click", removePopup, {
-      once: true
-    });
+    document.addEventListener("click", removePopup, { once: true });
   }, 0);
 }
 
@@ -51,8 +48,10 @@ function showPopup(selectedText, response, x, y) {
   answerP.innerText = response.answer || "";
   popup.appendChild(answerP);
 
+  const BACKEND_URL = "http://127.0.0.1:8000/api/llm";
+
   if (response.actions && Array.isArray(response.actions)) {
-    response.actions.forEach(action => {
+    response.actions.forEach((action) => {
       const btn = document.createElement("button");
       btn.innerText = action.label;
       btn.style.margin = "5px";
@@ -60,13 +59,11 @@ function showPopup(selectedText, response, x, y) {
         try {
           const res = await fetch(BACKEND_URL, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               text: selectedText,
-              action: action.id
-            })
+              action: action.id,
+            }),
           });
 
           if (!res.ok) throw new Error("Backend error " + res.status);
@@ -86,14 +83,11 @@ function showPopup(selectedText, response, x, y) {
   document.body.appendChild(popup);
 
   setTimeout(() => {
-    document.addEventListener("click", removePopup, {
-      once: true
-    });
+    document.addEventListener("click", removePopup, { once: true });
   }, 0);
 }
 
-
-// Capture selected text and send initial message to background
+// --- Main listener for text selection ---
 document.addEventListener("mouseup", (event) => {
   const selection = window.getSelection().toString().trim();
   if (!selection) return;
@@ -102,19 +96,35 @@ document.addEventListener("mouseup", (event) => {
   showLoadingPopup(event.pageX, event.pageY);
 
   // Send message to background script
-  chrome.runtime.sendMessage({
-    type: "SHOW_MENU",
-    text: selection
-  }, (response) => {
-    if (chrome.runtime.lastError || response.status === "error") {
-      // Update popup with error message
-      showPopup(selection, {
-        answer: "❌ Backend unavailable",
-        actions: []
-      }, event.pageX, event.pageY);
-    } else {
-      // Update popup with backend response
-      showPopup(selection, response, event.pageX, event.pageY);
+  chrome.runtime.sendMessage(
+    { type: "SHOW_MENU", text: selection },
+    (response) => {
+      console.log(
+        "📩 Response from background:",
+        response,
+        chrome.runtime.lastError
+      );
+
+      if (chrome.runtime.lastError || !response) {
+        showPopup(
+          selection,
+          { answer: "❌ Backend unavailable", actions: [] },
+          event.pageX,
+          event.pageY
+        );
+        return;
+      }
+
+      if (response.status === "error") {
+        showPopup(
+          selection,
+          { answer: "❌ Backend unavailable", actions: [] },
+          event.pageX,
+          event.pageY
+        );
+      } else {
+        showPopup(selection, response, event.pageX, event.pageY);
+      }
     }
-  });
+  );
 });
